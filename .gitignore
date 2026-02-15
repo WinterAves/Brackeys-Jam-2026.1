@@ -31,6 +31,7 @@ ExportedObj/
 *.csproj
 *.unityproj
 *.sln
+*.slnx
 *.suo
 *.tmp
 *.user
@@ -63,5 +64,7 @@ UserSettings/*
 
 
 Assets/Ignored
+
+
 
 .vscode/
