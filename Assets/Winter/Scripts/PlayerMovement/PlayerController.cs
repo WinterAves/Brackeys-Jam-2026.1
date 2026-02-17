@@ -17,6 +17,12 @@ namespace Winter.Player
         public Transform graphics;
         public Transform mainColliderTransform;
         public LayerMask playerMask;
+        public Animator animator;
+
+        public float groundCheckerOffset;
+
+        public float groundCheckRadius;
+
 
         private Vector3 worldSpaceGravityVector;
         private Rigidbody rb;
@@ -37,6 +43,7 @@ namespace Winter.Player
             rb = GetComponent<Rigidbody>();
             worldSpaceGravityVector = -Vector3.up;
             jumpForce = Mathf.Sqrt(2 * 9.8f * jumpHeight);
+
         }
 
         void Update()
@@ -52,6 +59,9 @@ namespace Winter.Player
 
             mainColliderTransform.rotation = Quaternion.Lerp(mainColliderTransform.rotation, Quaternion.LookRotation(worldSpaceMoveDirection == Vector3.zero ? Vector3.ProjectOnPlane(mainColliderTransform.forward, -worldSpaceGravityVector).normalized : worldSpaceMoveDirection.normalized, -worldSpaceGravityVector), Time.deltaTime * 8f);
             graphics.transform.rotation = mainColliderTransform.rotation;
+
+            animator.SetFloat("Move", Mathf.Clamp01(worldSpaceMoveDirection.magnitude));
+
         }
 
         private void CheckIfGrounded()
@@ -65,7 +75,9 @@ namespace Winter.Player
 
             timerOn = false;
             timer = 0;
-            isGrounded = Physics.OverlapSphereNonAlloc(mainColliderTransform.position - mainColliderTransform.up, 0.2f, nonAllocColQueryBuffer, playerMask, QueryTriggerInteraction.Ignore) > 0;
+            isGrounded = Physics.OverlapSphereNonAlloc(mainColliderTransform.position - mainColliderTransform.up * groundCheckerOffset, groundCheckRadius, nonAllocColQueryBuffer, playerMask, QueryTriggerInteraction.Ignore) > 0;
+
+            animator.SetBool("Grounded", isGrounded);
         }
 
         void FixedUpdate()
@@ -89,13 +101,21 @@ namespace Winter.Player
 
             if (InputManager.Instance.JumpPressedThisFrame && !isJumping && isGrounded)
             {
+                animator.SetTrigger("Jump");
+                var vell = mainColliderTransform.InverseTransformVector(rb.linearVelocity);
+                vell.y = 0;
+                rb.linearVelocity = mainColliderTransform.TransformVector(vell);
                 rb.AddForce(mainColliderTransform.up * jumpForce, ForceMode.VelocityChange);
                 isJumping = true;
                 timerOn = true;
             }
         }
 
-
+        void OnDrawGizmos()
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawSphere(mainColliderTransform.position - mainColliderTransform.up * groundCheckerOffset, groundCheckRadius);
+        }
 
         [ContextMenu("FlipGravity")]
         public void FlipGravity()
@@ -107,6 +127,12 @@ namespace Winter.Player
         public void GravityAlongX()
         {
             this.worldSpaceGravityVector = Vector3.right;
+        }
+
+        [ContextMenu("Flip Along -Y")]
+        public void GravityAlongY()
+        {
+            this.worldSpaceGravityVector = -Vector3.up;
         }
     }
 }
