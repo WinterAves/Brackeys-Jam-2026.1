@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using Winter.Input;
@@ -37,6 +38,26 @@ namespace Winter.Player
         private float timer = 0;
         private bool timerOn;
 
+        [Header("Audio Feedback")]
+        public AudioSource audioSource;
+        public List<AudioClip> stepSounds = new();
+        public AudioClip jumpUpAudioClip;
+        public AudioClip landAudioClip;
+        public bool DisableDefaultSoundImplementation;
+
+
+        public static PlayerController Instance;
+
+        public Action OnStepSFX;
+        public Action OnJumpUpSFX;
+        public Action OnLandSFX;
+
+        void Awake()
+        {
+            if (Instance == null) Instance = this;
+        }
+
+
         void Start()
         {
             nonAllocColQueryBuffer = new Collider[2];
@@ -44,12 +65,13 @@ namespace Winter.Player
             worldSpaceGravityVector = -Vector3.up;
             jumpForce = Mathf.Sqrt(2 * 9.8f * jumpHeight);
 
+            if (!DisableDefaultSoundImplementation)
+                OnStepSFX += () => PlayAudioClip(stepSounds[UnityEngine.Random.Range(0, stepSounds.Count)]);
+
         }
 
         void Update()
         {
-
-
             var alongCam = Camera.main.transform.rotation * new Vector3(InputManager.Instance.MoveRaw.x, 0, InputManager.Instance.MoveRaw.y);
             worldSpaceMoveDirection = Vector3.ProjectOnPlane(alongCam, mainColliderTransform.up).normalized;
             //worldSpaceMoveDirection = transform.rotation * alongCam;
@@ -94,14 +116,21 @@ namespace Winter.Player
             targetVel = mainColliderTransform.TransformVector(targetVel);
             rb.linearVelocity = targetVel;
 
-            if (isGrounded)
+            if (isGrounded && isJumping)
             {
                 isJumping = false;
+                OnLandSFX?.Invoke();
+
+                if (!DisableDefaultSoundImplementation)
+                    PlayAudioClip(landAudioClip);
             }
 
             if (InputManager.Instance.JumpPressedThisFrame && !isJumping && isGrounded)
             {
+                OnJumpUpSFX?.Invoke();
                 animator.SetTrigger("Jump");
+                if (!DisableDefaultSoundImplementation)
+                    PlayAudioClip(jumpUpAudioClip);
                 var vell = mainColliderTransform.InverseTransformVector(rb.linearVelocity);
                 vell.y = 0;
                 rb.linearVelocity = mainColliderTransform.TransformVector(vell);
@@ -111,28 +140,44 @@ namespace Winter.Player
             }
         }
 
+        private void PlayAudioClip(AudioClip clip)
+        {
+            audioSource.Stop();
+            audioSource.clip = clip;
+            audioSource.time = 0;
+            audioSource.Play();
+        }
+
         void OnDrawGizmos()
         {
             Gizmos.color = Color.green;
             Gizmos.DrawSphere(mainColliderTransform.position - mainColliderTransform.up * groundCheckerOffset, groundCheckRadius);
         }
 
+
+
+
+
+
         [ContextMenu("FlipGravity")]
         public void FlipGravity()
         {
             this.worldSpaceGravityVector = -this.worldSpaceGravityVector;
+            animator.SetTrigger("Flip");
         }
 
         [ContextMenu("Gravity along +X")]
         public void GravityAlongX()
         {
             this.worldSpaceGravityVector = Vector3.right;
+            animator.SetTrigger("Flip");
         }
 
         [ContextMenu("Flip Along -Y")]
         public void GravityAlongY()
         {
             this.worldSpaceGravityVector = -Vector3.up;
+            animator.SetTrigger("Flip");
         }
     }
 }
