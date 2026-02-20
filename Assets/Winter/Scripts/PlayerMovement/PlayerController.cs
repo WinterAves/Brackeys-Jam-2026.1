@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.VisualScripting;
 using UnityEngine;
 using Winter.Input;
 
@@ -25,8 +27,8 @@ namespace Winter.Player
         public float groundCheckRadius;
 
 
-        private Vector3 worldSpaceGravityVector;
-        private Rigidbody rb;
+        public Vector3 worldSpaceGravityVector;
+        public Rigidbody rb;
 
         public Vector3 worldSpaceMoveDirection { get; private set; }
 
@@ -52,6 +54,13 @@ namespace Winter.Player
         public Action OnJumpUpSFX;
         public Action OnLandSFX;
 
+
+        public bool IsPushingPulling;
+        public float pushPullSenseDistance;
+        public HingeJoint joint;
+
+
+
         void Awake()
         {
             if (Instance == null) Instance = this;
@@ -60,6 +69,7 @@ namespace Winter.Player
 
         void Start()
         {
+
             nonAllocColQueryBuffer = new Collider[2];
             rb = GetComponent<Rigidbody>();
             worldSpaceGravityVector = -Vector3.up;
@@ -72,18 +82,51 @@ namespace Winter.Player
 
         void Update()
         {
+
+            CheckPushPull();
+
             var alongCam = Camera.main.transform.rotation * new Vector3(InputManager.Instance.MoveRaw.x, 0, InputManager.Instance.MoveRaw.y);
             worldSpaceMoveDirection = Vector3.ProjectOnPlane(alongCam, mainColliderTransform.up).normalized;
             //worldSpaceMoveDirection = transform.rotation * alongCam;
 
             Debug.DrawLine(transform.position, transform.position + worldSpaceMoveDirection.normalized * 10f, Color.red);
 
-
             mainColliderTransform.rotation = Quaternion.Lerp(mainColliderTransform.rotation, Quaternion.LookRotation(worldSpaceMoveDirection == Vector3.zero ? Vector3.ProjectOnPlane(mainColliderTransform.forward, -worldSpaceGravityVector).normalized : worldSpaceMoveDirection.normalized, -worldSpaceGravityVector), Time.deltaTime * 8f);
-            graphics.transform.rotation = mainColliderTransform.rotation;
+
+
+            if (!IsPushingPulling)
+            {
+                graphics.transform.rotation = mainColliderTransform.rotation;
+            }
+
+
 
             animator.SetFloat("Move", Mathf.Clamp01(worldSpaceMoveDirection.magnitude));
 
+        }
+
+        private void CheckPushPull()
+        {
+            if (Physics.Raycast(graphics.position, graphics.forward, out RaycastHit hitInfo, pushPullSenseDistance, LayerMask.GetMask("IO")) && InputManager.Instance.InteractionBeingPressed)
+            {
+                IsPushingPulling = true;
+                var dir = Vector3.ProjectOnPlane(hitInfo.transform.position - mainColliderTransform.position, -worldSpaceGravityVector).normalized;
+                graphics.rotation = Quaternion.LookRotation(dir, -worldSpaceGravityVector);
+
+                if (joint == null)
+                    joint = gameObject.AddComponent<HingeJoint>();
+
+                joint.connectedBody = hitInfo.transform.GetComponent<Rigidbody>();
+
+            }
+            else
+            {
+                if (joint)
+                    Destroy(joint);
+
+                joint = null;
+                IsPushingPulling = false;
+            }
         }
 
         private void CheckIfGrounded()
@@ -110,10 +153,11 @@ namespace Winter.Player
             rb.AddForce(garvitationalForce, ForceMode.Acceleration);
 
             var targetVel = worldSpaceMoveDirection.normalized * walkSpeed;
-            ///targetVel = Vector2.Lerp(rb.linearVelocity, targetVel, Time.fixedDeltaTime * 4f);
+
             targetVel = mainColliderTransform.InverseTransformVector(targetVel);
             targetVel.y = mainColliderTransform.InverseTransformVector(rb.linearVelocity).y;
             targetVel = mainColliderTransform.TransformVector(targetVel);
+
             rb.linearVelocity = targetVel;
 
             if (isGrounded && isJumping)
@@ -138,6 +182,14 @@ namespace Winter.Player
                 isJumping = true;
                 timerOn = true;
             }
+
+        }
+
+
+
+        private float DistanceToPlayer(Transform t)
+        {
+            return (t.position - transform.position).sqrMagnitude;
         }
 
         private void PlayAudioClip(AudioClip clip)
@@ -148,15 +200,13 @@ namespace Winter.Player
             audioSource.Play();
         }
 
+
+
         void OnDrawGizmos()
         {
             Gizmos.color = Color.green;
             Gizmos.DrawSphere(mainColliderTransform.position - mainColliderTransform.up * groundCheckerOffset, groundCheckRadius);
         }
-
-
-
-
 
 
         [ContextMenu("FlipGravity")]

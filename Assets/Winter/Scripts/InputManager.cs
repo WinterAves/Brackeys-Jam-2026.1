@@ -19,6 +19,10 @@ namespace Winter.Input
         private bool jumpPressedThisFrame;
         public bool JumpPressedThisFrame => jumpPressedThisFrame;
 
+        public bool InteractionBeingPressed => Mouse.current != null ? Mouse.current.leftButton.isPressed : false;
+
+
+
         void Awake()
         {
             if (Instance == null) Instance = this;
@@ -47,6 +51,8 @@ namespace Winter.Input
 
 
         }
+
+
 
         void OnEnable()
         {
