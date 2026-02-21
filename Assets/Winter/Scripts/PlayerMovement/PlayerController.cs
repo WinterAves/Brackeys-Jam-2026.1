@@ -193,11 +193,6 @@ namespace Winter.Player
 
 
 
-        private float DistanceToPlayer(Transform t)
-        {
-            return (t.position - transform.position).sqrMagnitude;
-        }
-
         private void PlayAudioClip(AudioClip clip)
         {
             audioSource.Stop();
